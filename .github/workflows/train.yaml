@@ -48,7 +48,7 @@ jobs:
 
             - name: Push models to S3
               run: |
-                aws s3 cp models/churn_model.pkl s3://{{ env.S3_BUCKET }}/models/churn_model.pkl
+                aws s3 cp models/churn_model.pkl s3://${{ env.S3_BUCKET }}/models/churn_model.pkl
                 echo "Model uploaded to S3 bucket: ${{ env.S3_BUCKET }}"
 
             - name: Update inference.yaml file with S3 model path

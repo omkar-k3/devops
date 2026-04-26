@@ -1,0 +1,66 @@
+name: model training pipeline
+
+on:
+    push:
+        branches: [mlops]
+    workflow_dispatch:
+
+env:
+    AWS_REGION: ap-south-1
+    S3_BUCKET: mlops-bucket-975049902478-ap-south-1-an
+
+jobs:
+    train-and-deploy:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+            
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v6
+              with:
+                token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Set up Python
+              uses: actions/setup-python@v4
+              with:
+                  python-version: '3.12'
+
+            - name: Install dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install -r requirements.txt
+
+            - name: Generate dataset
+              run: python generate_data.py
+
+            - name: Train model
+              run: |
+                  python train.py
+
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  role-to-assume: arn:aws:iam::975049902478:role/devops-oidc-github
+                  aws-region: ${{ env.AWS_REGION }}
+
+            - name: Push models to S3
+              run: |
+                aws s3 cp models/churn_model.pkl s3://{{ env.S3_BUCKET }}/models/churn_model.pkl
+                echo "Model uploaded to S3 bucket: ${{ env.S3_BUCKET }}"
+
+            - name: Update inference.yaml file with S3 model path
+              run: |
+                MODEL_URI="s3://${{ env.S3_BUCKET }}/models/churn_model.pkl"
+                sed -i "s|storageUri: .*|storageUri: $MODEL_URI|g" k8s/inference.yaml
+                echo "Updated inference.yaml with model path: ${MODEL_URI}"
+
+            - name: Commit updated inference.yaml
+              run: |
+                git config --local user.name "Github Action"
+                git config --local user.email "actions@github.com"
+                git add k8s/inference.yaml           
+                git commit -m "Update model S3 path [skip ci]" || echo "No changes"
+                git push || echo "No changes to push"
+                

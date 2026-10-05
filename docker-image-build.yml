@@ -1,5 +1,5 @@
 trigger:
-  - main  # Triggers the pipeline on commits to the main branch
+  - azure-pipelines  # Triggers the pipeline on commits to the azure-pipelines branch
 
 pool:
   vmImage: 'ubuntu-latest'  # Hosted agent that comes with Docker pre-installed

@@ -1,3 +1,6 @@
+name: 1.0.$(Rev:.r)  # Automatically incrementing build number for each run
+
+
 trigger:
   - azure-pipelines  # Triggers the pipeline on commits to the azure-pipelines branch
 
@@ -15,7 +18,7 @@ variables:
   dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile' 
   
   # 4. Use the unique Build ID as the image tag for version traceability
-  tag: '$(Build.BuildId)' 
+  tag: '$(Build.BuildNumber)' 
 
 stages:
 - stage: BuildAndPushStage

@@ -1,0 +1,12 @@
+{
+  "name": "azure-pipeline-test-app",
+  "version": "1.0.0",
+  "description": "Minimal app to test Azure DevOps Docker pipelines",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

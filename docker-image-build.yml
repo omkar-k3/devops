@@ -1,0 +1,38 @@
+trigger:
+  - main  # Triggers the pipeline on commits to the main branch
+
+pool:
+  vmImage: 'ubuntu-latest'  # Hosted agent that comes with Docker pre-installed
+
+variables:
+  # 1. Provide the exact name of the service connection you created in Step 1
+  dockerRegistryServiceConnection: 'acr-service-connection' 
+  
+  # 2. Name of your repository inside your container registry
+  imageRepository: 'my-web-app' 
+  
+  # 3. Path to your Dockerfile relative to the repository root
+  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile' 
+  
+  # 4. Use the unique Build ID as the image tag for version traceability
+  tag: '$(Build.BuildId)' 
+
+stages:
+- stage: BuildAndPushStage
+  displayName: 'Build and Push Docker Image'
+  jobs:
+  - job: BuildAndPushJob
+    displayName: 'Build and Push'
+    steps:
+    
+    # The Docker@2 task handles both building and pushing in one unified command
+    - task: Docker@2
+      displayName: 'Build and Push Image to Registry'
+      inputs:
+        containerRegistry: '$(dockerRegistryServiceConnection)'
+        repository: '$(imageRepository)'
+        command: 'buildAndPush'
+        Dockerfile: '$(dockerfilePath)'
+        tags: |
+          $(tag)
+          latest

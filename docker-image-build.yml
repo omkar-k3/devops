@@ -9,7 +9,7 @@ pool:
 
 variables:
   # 1. Provide the exact name of the service connection you created in Step 1
-  dockerRegistryServiceConnection: 'acr-service-connection' 
+  dockerRegistryServiceConnection: 'acr-service-connection-indiasouthcentral' 
   
   # 2. Name of your repository inside your container registry
   imageRepository: 'my-web-app' 
@@ -19,6 +19,12 @@ variables:
   
   # 4. Use the unique Build ID as the image tag for version traceability
   tag: '$(Build.BuildNumber)' 
+
+  # --- Added for AKS deployment ---
+  # Your registry's login server, e.g. myacr.azurecr.io
+  acrLoginServer: 'myacrindiasouthcentral.azurecr.io'
+  # Azure Resource Manager service connection that can access the AKS cluster(s)
+  azureServiceConnection: 'my-resource-manager-connection'
 
 stages:
 - stage: BuildAndPushStage
@@ -39,3 +45,23 @@ stages:
         tags: |
           $(tag)
           latest
+
+# ---------- Region 1 ----------
+- template: templates/deploy-region.yml
+  parameters:
+    region: indiasouthcentral
+    environment: aks-indiasouthcentral
+    resourceGroup: 'my-resource-group-India-west'
+    clusterName: 'my-cluster-1'
+    dependsOn:
+      - BuildAndPushStage
+
+# ---------- Region 2 (enable later) ----------
+# - template: templates/deploy-region.yml
+#   parameters:
+#     region: <region-2>
+#     environment: aks-<region-2>
+#     resourceGroup: '<rg-2>'
+#     clusterName: '<cluster-2-name>'
+#     dependsOn:
+#       - Deploy_indiasouthcentral

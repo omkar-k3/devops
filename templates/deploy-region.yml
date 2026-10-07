@@ -1,0 +1,52 @@
+parameters:
+  - name: region                  # short name used in the stage name, e.g. eastus
+    type: string
+  - name: environment             # Azure DevOps Environment (put approvals/checks here)
+    type: string
+  - name: resourceGroup
+    type: string
+  - name: clusterName
+    type: string
+  - name: dependsOn
+    type: object
+    default: []
+
+stages:
+  - stage: Deploy_${{ parameters.region }}
+    displayName: Deploy to ${{ parameters.region }}
+    dependsOn: ${{ parameters.dependsOn }}
+    jobs:
+      - deployment: Deploy
+        displayName: Deploy to AKS (${{ parameters.region }})
+        environment: ${{ parameters.environment }}
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                # Deployment jobs don't check out source automatically
+                - checkout: self
+
+                - task: KubernetesManifest@1
+                  displayName: Ensure namespace exists
+                  inputs:
+                    action: deploy
+                    connectionType: azureResourceManager
+                    azureSubscriptionConnection: $(azureServiceConnection)
+                    azureResourceGroup: ${{ parameters.resourceGroup }}
+                    kubernetesCluster: ${{ parameters.clusterName }}
+                    manifests: manifests/namespace.yaml
+
+                - task: KubernetesManifest@1
+                  displayName: Deploy app manifests
+                  inputs:
+                    action: deploy
+                    connectionType: azureResourceManager
+                    azureSubscriptionConnection: $(azureServiceConnection)
+                    azureResourceGroup: ${{ parameters.resourceGroup }}
+                    kubernetesCluster: ${{ parameters.clusterName }}
+                    namespace: nodeapp
+                    manifests: |
+                      manifests/deployment.yaml
+                      manifests/service.yaml
+                    # Replaces the image in deployment.yaml with the build's tag
+                    containers: $(acrLoginServer)/$(imageRepository):$(tag)

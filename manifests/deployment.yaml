@@ -24,7 +24,7 @@ spec:
         - name: nodeapp
           # The pipeline overrides this image with the freshly built tag
           # via the `containers` input of KubernetesManifest@1.
-          image: myacr.azurecr.io/nodeapp:latest
+          image: myacrindiasouthcentral.azurecr.io/my-web-app:latest
           ports:
             - containerPort: 3000   # change to the port your Node app listens on
           resources:

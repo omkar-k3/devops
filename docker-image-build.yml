@@ -1,4 +1,4 @@
-name: 1.0.$(Rev:.r)  # Automatically incrementing build number for each run
+name: 1.0.$(Rev:r)  # Automatically incrementing build number for each run
 
 
 trigger:
@@ -57,11 +57,11 @@ stages:
       - BuildAndPushStage
 
 # ---------- Region 2 (enable later) ----------
-# - template: templates/deploy-region.yml
-#   parameters:
-#     region: <region-2>
-#     environment: aks-<region-2>
-#     resourceGroup: '<rg-2>'
-#     clusterName: '<cluster-2-name>'
-#     dependsOn:
-#       - Deploy_indiasouthcentral
+- template: templates/deploy-region.yml
+  parameters:
+     region: centralindia
+     environment: aks-centralindia
+     resourceGroup: 'my-resource-group-India-west'
+     clusterName: 'my-cluster-2'
+     dependsOn:
+       - Deploy_indiasouthcentral

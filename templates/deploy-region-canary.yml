@@ -24,7 +24,7 @@ stages:
     jobs:
       - deployment: Deploy
         displayName: Canary deploy (${{ parameters.region }})
-        environment: ${{ parameters.environment }}
+        environment: ${{ parameters.environment }}.nodeapp
         strategy:
           canary:
             increments:

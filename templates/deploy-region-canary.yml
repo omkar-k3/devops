@@ -1,0 +1,124 @@
+parameters:
+  - name: region                  # used in the stage name, e.g. indiasouthcentral
+    type: string
+  - name: environment             # Azure DevOps Environment
+    type: string
+  - name: resourceGroup
+    type: string
+  - name: clusterName
+    type: string
+  - name: canaryPercentage        # % of the manifest's replica count used for baseline and canary pods
+    type: number
+    default: 25
+  - name: notifyUsers             # who is notified and can approve the promote/reject gate
+    type: string
+    default: ''
+  - name: dependsOn
+    type: object
+    default: []
+
+stages:
+  - stage: Deploy_${{ parameters.region }}
+    displayName: Canary deploy to ${{ parameters.region }}
+    dependsOn: ${{ parameters.dependsOn }}
+    jobs:
+      - deployment: Deploy
+        displayName: Canary deploy (${{ parameters.region }})
+        environment: ${{ parameters.environment }}
+        strategy:
+          canary:
+            increments:
+              - ${{ parameters.canaryPercentage }}
+
+            # 1. Create baseline (current version) + canary (new version) pods
+            deploy:
+              steps:
+                - checkout: self
+
+                # Replaces the __REGION__ placeholder (harmless no-op if you don't use it)
+                - bash: sed -i 's/__REGION__/${{ parameters.region }}/' manifests/deployment.yaml
+                  displayName: Set region label
+
+                - task: KubernetesManifest@1
+                  displayName: Ensure namespace exists
+                  inputs:
+                    action: deploy
+                    connectionType: azureResourceManager
+                    azureSubscriptionConnection: $(azureServiceConnection)
+                    azureResourceGroup: ${{ parameters.resourceGroup }}
+                    kubernetesCluster: ${{ parameters.clusterName }}
+                    manifests: manifests/namespace.yaml
+
+                - task: KubernetesManifest@1
+                  displayName: Deploy canary ($(strategy.increment)%)
+                  inputs:
+                    action: deploy
+                    strategy: canary
+                    percentage: $(strategy.increment)
+                    connectionType: azureResourceManager
+                    azureSubscriptionConnection: $(azureServiceConnection)
+                    azureResourceGroup: ${{ parameters.resourceGroup }}
+                    kubernetesCluster: ${{ parameters.clusterName }}
+                    namespace: nodeapp
+                    manifests: |
+                      manifests/deployment.yaml
+                      manifests/service.yaml
+                    containers: $(acrLoginServer)/$(imageRepository):$(tag)
+
+            # 2. Pause here so you can inspect the canary, then approve or reject
+            postRouteTraffic:
+              pool: server
+              steps:
+                - task: ManualValidation@0
+                  displayName: Verify canary in ${{ parameters.region }}
+                  timeoutInMinutes: 60
+                  inputs:
+                    notifyUsers: ${{ parameters.notifyUsers }}
+                    instructions: |
+                      Canary is live in ${{ parameters.region }}.
+                      Check: kubectl get pods -n nodeapp
+                      Check: curl the Service EXTERNAL-IP in a loop and look for old vs new responses.
+                      Resume = promote the new version. Reject = remove the canary.
+                    onTimeout: reject
+
+            on:
+              # Rejected, timed out, or any earlier failure: remove canary + baseline
+              failure:
+                steps:
+                  - checkout: self
+                  - bash: sed -i 's/__REGION__/${{ parameters.region }}/' manifests/deployment.yaml
+                    displayName: Set region label
+                  - task: KubernetesManifest@1
+                    displayName: Reject canary
+                    inputs:
+                      action: reject
+                      strategy: canary
+                      connectionType: azureResourceManager
+                      azureSubscriptionConnection: $(azureServiceConnection)
+                      azureResourceGroup: ${{ parameters.resourceGroup }}
+                      kubernetesCluster: ${{ parameters.clusterName }}
+                      namespace: nodeapp
+                      manifests: |
+                        manifests/deployment.yaml
+                        manifests/service.yaml
+
+              # Approved: roll the new version out to the stable deployment, remove canary + baseline
+              success:
+                steps:
+                  - checkout: self
+                  - bash: sed -i 's/__REGION__/${{ parameters.region }}/' manifests/deployment.yaml
+                    displayName: Set region label
+                  - task: KubernetesManifest@1
+                    displayName: Promote canary to stable
+                    inputs:
+                      action: promote
+                      strategy: canary
+                      connectionType: azureResourceManager
+                      azureSubscriptionConnection: $(azureServiceConnection)
+                      azureResourceGroup: ${{ parameters.resourceGroup }}
+                      kubernetesCluster: ${{ parameters.clusterName }}
+                      namespace: nodeapp
+                      manifests: |
+                        manifests/deployment.yaml
+                        manifests/service.yaml
+                      containers: $(acrLoginServer)/$(imageRepository):$(tag)

@@ -1,29 +1,31 @@
 name: 1.0.$(Rev:r)  # Automatically incrementing build number for each run
 
-
 trigger:
-  - azure-pipelines  # Triggers the pipeline on commits to the azure-pipelines branch
+  - azure-pipelines
+
+parameters:
+  - name: deploymentStrategy
+    displayName: Deployment strategy
+    type: string
+    default: rolling          # used for automatic (push-triggered) runs
+    values:
+      - rolling
+      - canary
+  - name: canaryPercentage
+    displayName: Canary percentage (only used for canary)
+    type: number
+    default: 25
 
 pool:
-  vmImage: 'ubuntu-latest'  # Hosted agent that comes with Docker pre-installed
+  vmImage: 'ubuntu-latest'
 
 variables:
-  # 1. Provide the exact name of the service connection you created in Step 1
-  dockerRegistryServiceConnection: 'acr-service-connection-indiasouthcentral' 
-  
-  # 2. Name of your repository inside your container registry
-  imageRepository: 'my-web-app' 
-  
-  # 3. Path to your Dockerfile relative to the repository root
-  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile' 
-  
-  # 4. Use the unique Build ID as the image tag for version traceability
-  tag: '$(Build.BuildNumber)' 
+  dockerRegistryServiceConnection: 'acr-service-connection-indiasouthcentral'
+  imageRepository: 'my-web-app'
+  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
+  tag: '$(Build.BuildNumber)'
 
-  # --- Added for AKS deployment ---
-  # Your registry's login server, e.g. myacr.azurecr.io
   acrLoginServer: 'myacrindiasouthcentral.azurecr.io'
-  # Azure Resource Manager service connection that can access the AKS cluster(s)
   azureServiceConnection: 'my-resource-manager-connection'
 
 stages:
@@ -33,8 +35,6 @@ stages:
   - job: BuildAndPushJob
     displayName: 'Build and Push'
     steps:
-    
-    # The Docker@2 task handles both building and pushing in one unified command
     - task: Docker@2
       displayName: 'Build and Push Image to Registry'
       inputs:
@@ -46,22 +46,46 @@ stages:
           $(tag)
           latest
 
-# ---------- Region 1 ----------
-- template: templates/deploy-region.yml
-  parameters:
-    region: indiasouthcentral
-    environment: aks-indiasouthcentral
-    resourceGroup: 'my-resource-group-India-west'
-    clusterName: 'my-cluster-1'
-    dependsOn:
-      - BuildAndPushStage
+# ======================= ROLLING (default) =======================
+- ${{ if eq(parameters.deploymentStrategy, 'rolling') }}:
+  - template: templates/deploy-region.yml
+    parameters:
+      region: indiasouthcentral
+      environment: aks-indiasouthcentral
+      resourceGroup: 'my-resource-group-India-west'
+      clusterName: 'my-cluster-1'
+      dependsOn:
+        - BuildAndPushStage
 
-# ---------- Region 2 (enable later) ----------
-- template: templates/deploy-region.yml
-  parameters:
-     region: centralindia
-     environment: aks-centralindia
-     resourceGroup: 'my-resource-group-India-west'
-     clusterName: 'my-cluster-2'
-     dependsOn:
-       - Deploy_indiasouthcentral
+  - template: templates/deploy-region.yml
+    parameters:
+      region: centralindia
+      environment: aks-centralindia
+      resourceGroup: 'my-resource-group-India-west'
+      clusterName: 'my-cluster-2'
+      dependsOn:
+        - Deploy_indiasouthcentral
+
+# ========================== CANARY ===============================
+- ${{ if eq(parameters.deploymentStrategy, 'canary') }}:
+  - template: templates/deploy-region-canary.yml
+    parameters:
+      region: indiasouthcentral
+      environment: aks-indiasouthcentral
+      resourceGroup: 'my-resource-group-India-west'
+      clusterName: 'my-cluster-1'
+      canaryPercentage: ${{ parameters.canaryPercentage }}
+      notifyUsers: 'omkarkhare60@gmail.com'
+      dependsOn:
+        - BuildAndPushStage
+
+  - template: templates/deploy-region-canary.yml
+    parameters:
+      region: centralindia
+      environment: aks-centralindia
+      resourceGroup: 'my-resource-group-India-west'
+      clusterName: 'my-cluster-2'
+      canaryPercentage: ${{ parameters.canaryPercentage }}
+      notifyUsers: 'omkarkhare60@gmail.com'
+      dependsOn:
+        - Deploy_indiasouthcentral

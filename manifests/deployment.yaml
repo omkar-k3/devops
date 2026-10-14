@@ -29,9 +29,13 @@ spec:
             - containerPort: 3000   # change to the port your Node app listens on
           resources:
             requests:
-              cpu: 100m
-              memory: 128Mi
+              #cpu: 100m
+              cpu: 25m
+              memory: 64Mi
+              #memory: 128Mi
             limits:
+              #cpu: 250m
+              #memory: 256Mi
               cpu: 250m
               memory: 256Mi
           readinessProbe:
